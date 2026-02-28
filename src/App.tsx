@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from "react";
 
 /**
- * ✅ App.tsx（TypeScript / CRA react-scripts 可直接 build）
+ * ✅ App.tsx（TypeScript / CRA react-scripts / Vercel 可直接 build）
  * - 零外部 UI 依赖
- * - 完整类型：避免 TS7006 implicit any
- * - 功能：输入任意变量的趋势（上升/下降），输出连锁反应 + 最强路径解释
+ * - 完整类型：避免 implicit any
+ * - 修复 TS2569：不直接 for..of Map.entries()，改用 Array.from(...)
  */
 
 /** ===== 类型定义 ===== */
@@ -51,9 +51,9 @@ type Node = { id: NodeId; zh: string };
 type Edge = {
   from: NodeId;
   to: NodeId;
-  sign: Sign; // +1/-1
-  strength: Strength; // 1..3
-  lag: Lag; // S/M/L
+  sign: Sign;
+  strength: Strength;
+  lag: Lag;
   note: string;
 };
 
@@ -106,7 +106,7 @@ const nodes: Node[] = [
 const lagWeight: Record<Lag, number> = { S: 1, M: 2, L: 3 };
 
 /**
- * E=本币/外币，因此 E↑ = 本币贬值（需要更多本币换1单位外币）
+ * 说明：E = 本币/外币，因此 E↑ = 本币贬值（需要更多本币换 1 单位外币）
  */
 const edges: Edge[] = [
   // 主干 + 金融枢纽
@@ -174,7 +174,6 @@ function lagToZh(lag: Lag): string {
 }
 
 function strengthScale(strength: Strength): number {
-  // 1..3 → 0.4..1.0（可根据你的偏好调整）
   return strength === 3 ? 1.0 : strength === 2 ? 0.7 : 0.4;
 }
 
@@ -197,7 +196,8 @@ function scoreStrengthLabel(absScore: number): "强" | "中" | "弱" {
 
 /**
  * 传播：从起点做 BFS
- * - 每个节点只保留“绝对影响最大”的路径（更可解释）
+ * - 每个节点只保留“绝对影响最大”的路径（可解释性更强）
+ * - ✅ 用 Array.from(best.entries()) 避免 TS2569
  */
 function propagate(params: {
   start: NodeId;
@@ -221,7 +221,7 @@ function propagate(params: {
   const q: NodeId[] = [start];
 
   while (q.length) {
-    const cur = q.shift()!;
+    const cur = q.shift() as NodeId;
     const curState = best.get(cur);
     if (!curState) continue;
     if (curState.steps >= maxSteps) continue;
@@ -239,22 +239,28 @@ function propagate(params: {
       const isBetter = !prev || Math.abs(nextScore) > Math.abs(prev.score);
 
       if (isBetter && Math.abs(nextScore) >= threshold) {
-        best.set(next, { score: nextScore, steps: nextSteps, lagSum: nextLagSum, path: [...curState.path, e] });
+        best.set(next, {
+          score: nextScore,
+          steps: nextSteps,
+          lagSum: nextLagSum,
+          path: [...curState.path, e],
+        });
         q.push(next);
       }
     }
   }
 
   const results: PropResult[] = [];
-  for (const [id, s] of best.entries()) {
-    if (id === start) continue;
+  Array.from(best.entries()).forEach(([id, s]) => {
+    if (id === start) return;
     results.push({ id, score: s.score, steps: s.steps, lagSum: s.lagSum, path: s.path });
-  }
+  });
+
   results.sort((a, b) => Math.abs(b.score) - Math.abs(a.score));
   return results;
 }
 
-/** ===== 简单样式（内联，避免额外依赖） ===== */
+/** ===== 样式（内联，零依赖） ===== */
 const page: React.CSSProperties = {
   fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
   background: "#fafafa",
@@ -302,7 +308,8 @@ const pill: React.CSSProperties = {
   background: "rgba(0,0,0,0.02)",
 };
 
-function Btn({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
+function Btn(props: { active: boolean; children: React.ReactNode; onClick: () => void }): JSX.Element {
+  const { active, children, onClick } = props;
   return (
     <button
       onClick={onClick}
@@ -321,7 +328,8 @@ function Btn({ active, children, onClick }: { active: boolean; children: React.R
   );
 }
 
-function ScorePill({ score }: { score: number }) {
+function ScorePill(props: { score: number }): JSX.Element {
+  const { score } = props;
   const abs = Math.abs(score);
   const dir = score >= 0 ? "正向" : "反向";
   const s = scoreStrengthLabel(abs);
@@ -336,7 +344,8 @@ function ScorePill({ score }: { score: number }) {
   );
 }
 
-function PathView({ path }: { path: Edge[] }) {
+function PathView(props: { path: Edge[] }): JSX.Element {
+  const { path } = props;
   if (!path.length) return <div style={{ opacity: 0.7 }}>（无路径）</div>;
 
   return (
@@ -517,7 +526,7 @@ export default function App(): JSX.Element {
                 冲击：<b>{nodeLabel(start)}</b> {trend.startsWith("down") ? "下降" : "上升"}
               </div>
               <div style={{ fontSize: 12, color: "rgba(0,0,0,0.65)", marginTop: 4 }}>
-                将展示超过阈值的“最强路径”传播结果（每个节点保留绝对影响最大的一条路径）。
+                将展示超过阈值的最强路径传播结果（每个节点保留绝对影响最大的一条路径）。
               </div>
             </div>
 
@@ -604,7 +613,7 @@ export default function App(): JSX.Element {
                 用 1/2/3，<code>lag</code> 用 S/M/L。
               </li>
               <li>
-                当前算法对每个节点只保留“绝对影响最大”的路径（更可解释）。如果你想“多路径累加”，我也可以帮你改成累加版本或矩阵脉冲响应版本。
+                当前算法对每个节点只保留“绝对影响最大”的路径（更可解释）。如果你想“多路径累加”或“矩阵脉冲响应（IRF）”，我也可以帮你改。
               </li>
             </ul>
           </div>
