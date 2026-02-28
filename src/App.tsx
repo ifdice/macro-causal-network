@@ -2,9 +2,8 @@ import React, { useMemo, useState } from "react";
 
 /**
  * ✅ App.tsx（TypeScript / CRA react-scripts / Vercel 可直接 build）
- * - 零外部 UI 依赖
- * - 完整类型：避免 implicit any
- * - 修复 TS2569：不直接 for..of Map.entries()，改用 Array.from(...)
+ * ✅ 移动端优化：响应式布局（手机自动单列）、表格可横向滚动、字体/间距自适应
+ * ✅ 修复 TS2569：使用 Array.from(best.entries()) 遍历 Map
  */
 
 /** ===== 类型定义 ===== */
@@ -43,7 +42,9 @@ type NodeId =
   | "H";
 
 type Lag = "S" | "M" | "L";
+
 type Strength = 1 | 2 | 3;
+
 type Sign = 1 | -1;
 
 type Node = { id: NodeId; zh: string };
@@ -195,9 +196,9 @@ function scoreStrengthLabel(absScore: number): "强" | "中" | "弱" {
 }
 
 /**
- * 传播：从起点做 BFS
- * - 每个节点只保留“绝对影响最大”的路径（可解释性更强）
- * - ✅ 用 Array.from(best.entries()) 避免 TS2569
+ * 传播：从起点 BFS
+ * - 每个节点只保留“绝对影响最大”的路径
+ * - ✅ Array.from(best.entries()) 避免 TS2569
  */
 function propagate(params: {
   start: NodeId;
@@ -232,8 +233,7 @@ function propagate(params: {
       const nextSteps = curState.steps + 1;
       const nextLagSum = curState.lagSum + lagWeight[e.lag];
 
-      const nextScore =
-        curState.score * e.sign * strengthScale(e.strength) * Math.pow(decay, nextSteps - 1);
+      const nextScore = curState.score * e.sign * strengthScale(e.strength) * Math.pow(decay, nextSteps - 1);
 
       const prev = best.get(next);
       const isBetter = !prev || Math.abs(nextScore) > Math.abs(prev.score);
@@ -260,81 +260,149 @@ function propagate(params: {
   return results;
 }
 
-/** ===== 样式（内联，零依赖） ===== */
-const page: React.CSSProperties = {
-  fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial",
-  background: "#fafafa",
-  minHeight: "100vh",
-};
+/** ===== 样式（移动端优化：CSS media query） ===== */
+const css = `
+  :root {
+    --gap: 12px;
+    --radius: 18px;
+  }
 
-const container: React.CSSProperties = {
-  maxWidth: 1100,
-  margin: "0 auto",
-  padding: 16,
-};
+  .mcn-page {
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    background: #fafafa;
+    min-height: 100vh;
+  }
 
-const grid2: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 12,
-  alignItems: "start",
-};
+  .mcn-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px;
+  }
 
-const card: React.CSSProperties = {
-  border: "1px solid rgba(0,0,0,0.12)",
-  borderRadius: 18,
-  padding: 16,
-  background: "white",
-  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
-};
+  .mcn-title { margin: 0; font-size: 24px; }
+  .mcn-subtitle { margin-top: 8px; color: rgba(0,0,0,0.7); }
 
-const label: React.CSSProperties = { fontWeight: 700, marginBottom: 6 };
+  .mcn-grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap);
+    align-items: start;
+  }
 
-const input: React.CSSProperties = {
-  width: "100%",
-  padding: 10,
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.18)",
-};
+  .mcn-card {
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: var(--radius);
+    padding: 16px;
+    background: white;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.04);
+  }
 
-const pill: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  border: "1px solid rgba(0,0,0,0.12)",
-  borderRadius: 999,
-  padding: "6px 10px",
-  fontSize: 12,
-  background: "rgba(0,0,0,0.02)",
-};
+  .mcn-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    background: rgba(0,0,0,0.02);
+  }
 
-function Btn(props: { active: boolean; children: React.ReactNode; onClick: () => void }): JSX.Element {
-  const { active, children, onClick } = props;
+  .mcn-input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(0,0,0,0.18);
+  }
+
+  .mcn-btn {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.18);
+    background: white;
+    color: rgba(0,0,0,0.85);
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .mcn-btnActive {
+    background: rgba(0,0,0,0.90);
+    color: white;
+  }
+
+  .mcn-tableWrap {
+    max-height: 520px;
+    overflow: auto;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 14px;
+  }
+
+  .mcn-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 760px; /* 关键：让手机端变成横向滚动而不是挤坏 */
+  }
+
+  .mcn-th {
+    padding: 10px;
+    text-align: left;
+    font-weight: 900;
+    font-size: 12px;
+    position: sticky;
+    top: 0;
+    background: #fff;
+    border-bottom: 1px solid rgba(0,0,0,0.12);
+  }
+
+  .mcn-td {
+    padding: 10px;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+  }
+
+  .mcn-gridPaths {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap);
+  }
+
+  /* ===== 移动端：自动单列、加大点击区、减小表格字体 ===== */
+  @media (max-width: 820px) {
+    .mcn-container { padding: 12px; }
+    .mcn-title { font-size: 20px; }
+    .mcn-card { padding: 12px; border-radius: 16px; }
+
+    .mcn-grid2 { grid-template-columns: 1fr; }
+    .mcn-gridPaths { grid-template-columns: 1fr; }
+
+    .mcn-btn { padding: 12px 12px; }
+    .mcn-pill { font-size: 11px; padding: 6px 9px; }
+
+    .mcn-table { font-size: 12px; min-width: 680px; }
+    .mcn-th, .mcn-td { padding: 8px; }
+  }
+
+  @media (max-width: 420px) {
+    .mcn-title { font-size: 18px; }
+    .mcn-table { min-width: 640px; }
+  }
+`;
+
+function Btn({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: "1px solid rgba(0,0,0,0.18)",
-        background: active ? "rgba(0,0,0,0.90)" : "white",
-        color: active ? "white" : "rgba(0,0,0,0.85)",
-        cursor: "pointer",
-        fontWeight: 800,
-      }}
-    >
+    <button onClick={onClick} className={`mcn-btn ${active ? "mcn-btnActive" : ""}`.trim()}>
       {children}
     </button>
   );
 }
 
-function ScorePill(props: { score: number }): JSX.Element {
-  const { score } = props;
+function ScorePill({ score }: { score: number }) {
   const abs = Math.abs(score);
   const dir = score >= 0 ? "正向" : "反向";
   const s = scoreStrengthLabel(abs);
   return (
-    <span style={pill}>
+    <span className="mcn-pill">
       <b>{dir}</b>
       <span style={{ opacity: 0.6 }}>|</span>
       <span>{s}</span>
@@ -344,19 +412,22 @@ function ScorePill(props: { score: number }): JSX.Element {
   );
 }
 
-function PathView(props: { path: Edge[] }): JSX.Element {
-  const { path } = props;
+function PathView({ path }: { path: Edge[] }) {
   if (!path.length) return <div style={{ opacity: 0.7 }}>（无路径）</div>;
 
   return (
     <div style={{ fontSize: 12, lineHeight: 1.6 }}>
       <div style={{ opacity: 0.7, marginBottom: 6 }}>最强路径（按边顺序）</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-        <span style={{ ...pill, background: "rgba(0,0,0,0.03)", fontFamily: "ui-monospace" }}>{path[0].from}</span>
+        <span className="mcn-pill" style={{ background: "rgba(0,0,0,0.03)", fontFamily: "ui-monospace" }}>
+          {path[0].from}
+        </span>
         {path.map((e, idx) => (
           <React.Fragment key={`${e.from}-${e.to}-${idx}`}>
             <span style={{ opacity: 0.7 }}>→</span>
-            <span style={{ ...pill, background: "rgba(0,0,0,0.03)", fontFamily: "ui-monospace" }}>{e.to}</span>
+            <span className="mcn-pill" style={{ background: "rgba(0,0,0,0.03)", fontFamily: "ui-monospace" }}>
+              {e.to}
+            </span>
           </React.Fragment>
         ))}
       </div>
@@ -398,23 +469,25 @@ export default function App(): JSX.Element {
   const startNode = useMemo(() => nodes.find((n) => n.id === start), [start]);
 
   return (
-    <div style={page}>
-      <div style={container}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>宏观因果网络 · 反应模拟（TypeScript / 可部署）</h1>
-        <p style={{ marginTop: 8, color: "rgba(0,0,0,0.7)" }}>
+    <div className="mcn-page">
+      <style>{css}</style>
+
+      <div className="mcn-container">
+        <h1 className="mcn-title">宏观因果网络 · 反应模拟（移动端优化版）</h1>
+        <p className="mcn-subtitle">
           选择任意变量及其趋势（上升/下降），系统基于“方向+强度+滞后”的因果网络推演连锁反应。
           <span style={{ marginLeft: 8, fontWeight: 700 }}>注意：</span>这是结构化推演工具，不等同于精确预测。
         </p>
 
-        <div style={{ ...grid2, marginTop: 12 }}>
+        <div className="mcn-grid2" style={{ marginTop: 12 }}>
           {/* 输入 */}
-          <div style={card}>
+          <div className="mcn-card">
             <div style={{ fontWeight: 900, marginBottom: 10 }}>输入：冲击设定</div>
 
             <div style={{ marginBottom: 10 }}>
-              <div style={label}>搜索变量（ID/中文）</div>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>搜索变量（ID/中文）</div>
               <input
-                style={input}
+                className="mcn-input"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="例如：利率 / r / 通胀 / pi"
@@ -422,8 +495,8 @@ export default function App(): JSX.Element {
             </div>
 
             <div style={{ marginBottom: 10 }}>
-              <div style={label}>选择变量</div>
-              <select style={input} value={start} onChange={(e) => setStart(e.target.value as NodeId)}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>选择变量</div>
+              <select className="mcn-input" value={start} onChange={(e) => setStart(e.target.value as NodeId)}>
                 {filteredNodes.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.id}（{n.zh}）
@@ -437,8 +510,8 @@ export default function App(): JSX.Element {
 
             <div style={{ marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={label}>变化趋势</div>
-                <span style={pill}>{trendText(trend)}</span>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>变化趋势</div>
+                <span className="mcn-pill">{trendText(trend)}</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
                 <Btn active={trend === "up"} onClick={() => setTrend("up")}>
@@ -461,7 +534,7 @@ export default function App(): JSX.Element {
 
             <div style={{ display: "grid", gap: 10 }}>
               <div>
-                <div style={label}>传播深度（最大步数）：{maxSteps}</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>传播深度（最大步数）：{maxSteps}</div>
                 <input
                   type="range"
                   min={1}
@@ -474,7 +547,7 @@ export default function App(): JSX.Element {
               </div>
 
               <div>
-                <div style={label}>衰减系数（越小越保守）：{decay.toFixed(2)}</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>衰减系数（越小越保守）：{decay.toFixed(2)}</div>
                 <input
                   type="range"
                   min={0.3}
@@ -487,7 +560,7 @@ export default function App(): JSX.Element {
               </div>
 
               <div>
-                <div style={label}>显示阈值（过滤弱反应）：{threshold.toFixed(2)}</div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>显示阈值（过滤弱反应）：{threshold.toFixed(2)}</div>
                 <input
                   type="range"
                   min={0.01}
@@ -510,7 +583,7 @@ export default function App(): JSX.Element {
           </div>
 
           {/* 输出 */}
-          <div style={card}>
+          <div className="mcn-card">
             <div style={{ fontWeight: 900, marginBottom: 10 }}>输出：反应概览</div>
 
             <div
@@ -526,43 +599,45 @@ export default function App(): JSX.Element {
                 冲击：<b>{nodeLabel(start)}</b> {trend.startsWith("down") ? "下降" : "上升"}
               </div>
               <div style={{ fontSize: 12, color: "rgba(0,0,0,0.65)", marginTop: 4 }}>
-                将展示超过阈值的最强路径传播结果（每个节点保留绝对影响最大的一条路径）。
+                手机上表格可左右滑动；将展示超过阈值的最强路径传播结果（每个节点保留绝对影响最大的一条路径）。
               </div>
             </div>
 
             <div style={{ fontWeight: 900, marginBottom: 8 }}>可能引发的主要反应（按强度排序）</div>
 
-            <div style={{ maxHeight: 520, overflow: "auto", border: "1px solid rgba(0,0,0,0.12)", borderRadius: 14 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead style={{ position: "sticky", top: 0, background: "#fff" }}>
-                  <tr style={{ borderBottom: "1px solid rgba(0,0,0,0.12)" }}>
-                    <th style={{ padding: 10, textAlign: "left", fontWeight: 900, fontSize: 12 }}>变量</th>
-                    <th style={{ padding: 10, textAlign: "left", fontWeight: 900, fontSize: 12 }}>方向/强弱</th>
-                    <th style={{ padding: 10, textAlign: "left", fontWeight: 900, fontSize: 12 }}>步数</th>
-                    <th style={{ padding: 10, textAlign: "left", fontWeight: 900, fontSize: 12 }}>滞后(累加)</th>
+            <div className="mcn-tableWrap">
+              <table className="mcn-table">
+                <thead>
+                  <tr>
+                    <th className="mcn-th">变量</th>
+                    <th className="mcn-th">方向/强弱</th>
+                    <th className="mcn-th">步数</th>
+                    <th className="mcn-th">滞后(累加)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {results.length === 0 ? (
                     <tr>
-                      <td colSpan={4} style={{ padding: 12, color: "rgba(0,0,0,0.65)" }}>
+                      <td colSpan={4} className="mcn-td" style={{ color: "rgba(0,0,0,0.65)" }}>
                         没有找到超过阈值的传播结果。可尝试：提高最大步数、降低阈值或提高衰减系数。
                       </td>
                     </tr>
                   ) : (
                     results.map((r) => (
-                      <tr key={r.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
-                        <td style={{ padding: 10, verticalAlign: "top" }}>
+                      <tr key={r.id}>
+                        <td className="mcn-td">
                           <div style={{ fontWeight: 900 }}>{nodeLabel(r.id)}</div>
                           <div style={{ fontSize: 12, color: "rgba(0,0,0,0.65)" }}>
                             {r.path.length ? r.path[r.path.length - 1].note : ""}
                           </div>
                         </td>
-                        <td style={{ padding: 10, verticalAlign: "top" }}>
+                        <td className="mcn-td">
                           <ScorePill score={r.score} />
                         </td>
-                        <td style={{ padding: 10, verticalAlign: "top", fontVariantNumeric: "tabular-nums" }}>{r.steps}</td>
-                        <td style={{ padding: 10, verticalAlign: "top", fontVariantNumeric: "tabular-nums" }}>
+                        <td className="mcn-td" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {r.steps}
+                        </td>
+                        <td className="mcn-td" style={{ fontVariantNumeric: "tabular-nums" }}>
                           {r.lagSum} <span style={{ fontSize: 12, color: "rgba(0,0,0,0.6)" }}>(S=1,M=2,L=3)</span>
                         </td>
                       </tr>
@@ -575,9 +650,9 @@ export default function App(): JSX.Element {
         </div>
 
         {/* 路径解释 */}
-        <div style={{ ...card, marginTop: 12 }}>
+        <div className="mcn-card" style={{ marginTop: 12 }}>
           <div style={{ fontWeight: 900, marginBottom: 10 }}>路径解释（Top 6 最强路径）</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="mcn-gridPaths">
             {results.slice(0, 6).map((r) => (
               <div
                 key={r.id}
@@ -604,17 +679,15 @@ export default function App(): JSX.Element {
         </div>
 
         {/* 自定义说明 */}
-        <div style={{ ...card, marginTop: 12 }}>
+        <div className="mcn-card" style={{ marginTop: 12 }}>
           <div style={{ fontWeight: 900, marginBottom: 10 }}>自定义说明</div>
           <div style={{ fontSize: 13, color: "rgba(0,0,0,0.75)", lineHeight: 1.7 }}>
             <ul style={{ margin: 0, paddingLeft: 18 }}>
               <li>
-                你可以在 <code>nodes</code> 与 <code>edges</code> 里继续扩展变量与边：<code>sign</code> 用 +1/-1，<code>strength</code>{" "}
-                用 1/2/3，<code>lag</code> 用 S/M/L。
+                你可以在 <code>nodes</code> 与 <code>edges</code> 里继续扩展变量与边：<code>sign</code> 用 +1/-1，
+                <code>strength</code> 用 1/2/3，<code>lag</code> 用 S/M/L。
               </li>
-              <li>
-                当前算法对每个节点只保留“绝对影响最大”的路径（更可解释）。如果你想“多路径累加”或“矩阵脉冲响应（IRF）”，我也可以帮你改。
-              </li>
+              <li>当前算法对每个节点只保留“绝对影响最大”的路径（更可解释）。</li>
             </ul>
           </div>
         </div>
